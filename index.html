@@ -1,1 +1,1817 @@
-placeholder
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CVAF Research | Cloud VM Workload Forensics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+
+  :root{
+    --bg:#15181C;
+    --panel:#1E2329;
+    --panel-2:#1A1E24;
+    --border:#2C333B;
+    --edge:#3B4750;
+    --text:#E4E7EA;
+    --muted:#93A0AC;
+    --accent:#00E5FF;
+    --accent-dim:#0E6E7D;
+    --accent-soft:rgba(0,229,255,.07);
+    --ease-out:cubic-bezier(.22,.61,.36,1);
+    --ease-spring:cubic-bezier(.34,1.56,.64,1);
+    --ease-slide:cubic-bezier(.22,.61,.36,1);
+    --container:1200px;
+    --noise:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-padding-top:90px;scroll-behavior:smooth;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    font-weight:400;
+    line-height:1.6;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    overflow-x:hidden;
+  }
+  h1,h2,h3{
+    font-family:'Inter',system-ui,sans-serif;
+    font-weight:900;
+    line-height:1.08;
+    letter-spacing:-0.035em;
+  }
+  h1{font-size:64px;}
+  h2{font-size:36px;font-weight:800;letter-spacing:-0.03em;}
+  h3{font-size:19px;font-weight:700;letter-spacing:-0.015em;}
+
+  .tag, .pill, .lbl-h, .lbl-sm, .status-flip .face{
+    font-family:'JetBrains Mono','SF Mono',monospace;
+    letter-spacing:0.02em;
+  }
+
+  .wrap{max-width:var(--container);margin:0 auto;padding:0 40px;position:relative;z-index:1;}
+
+  .preloader{
+    position:fixed; inset:0; z-index:9999;
+    display:flex; align-items:center; justify-content:center;
+    background:
+      radial-gradient(circle at 50% 50%,
+        #1A1E24 0%, #171A20 25%, #14161B 50%, #111318 72%, #0F1215 100%);
+    transition:opacity .6s var(--ease-out), visibility .6s var(--ease-out);
+  }
+  .preloader::after{
+    content:''; position:absolute; inset:0;
+    background-image:var(--noise);
+    background-size:180px 180px;
+    opacity:.035; pointer-events:none; mix-blend-mode:overlay;
+  }
+  .preloader.is-hidden{opacity:0;visibility:hidden;pointer-events:none;}
+  .preloader__label{
+    position:absolute; bottom:18%; left:50%; transform:translateX(-50%);
+    font-family:'JetBrains Mono','SF Mono',monospace;
+    font-size:11px; letter-spacing:.28em; text-transform:uppercase;
+    color:var(--muted); opacity:.7;
+    animation:preloaderBlink 1.6s ease-in-out infinite;
+  }
+  .preloader__label b{color:var(--accent);font-weight:500;}
+  @keyframes preloaderBlink{
+    0%,100%{opacity:.35;} 50%{opacity:.85;}
+  }
+
+  .loader-simple{position:relative;width:80px;height:80px;}
+  .loader-simple__ring{
+    position:absolute; inset:0; border-radius:50%;
+    border:1.5px solid rgba(0,229,255,.12);
+    border-top-color:var(--accent);
+    border-right-color:var(--accent-dim);
+    animation:loaderSpin 1.1s linear infinite;
+    box-shadow:0 0 22px rgba(0,229,255,.18);
+  }
+  .loader-simple__core{
+    position:absolute; inset:18px; border-radius:50%;
+    background:radial-gradient(circle,
+      rgba(0,229,255,.85) 0%, rgba(0,229,255,.55) 20%,
+      rgba(0,229,255,.25) 45%, rgba(0,229,255,.08) 68%,
+      rgba(0,229,255,0) 85%);
+    animation:loaderPulse 1.6s ease-in-out infinite;
+  }
+  .loader-simple__dot{
+    position:absolute; top:-2px; left:50%;
+    width:6px; height:6px; margin-left:-3px; border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 12px var(--accent), 0 0 24px rgba(0,229,255,.4);
+    transform-origin:3px 42px;
+    animation:loaderSpin 1.1s linear infinite;
+  }
+  @keyframes loaderSpin{to{transform:rotate(360deg);}}
+  @keyframes loaderPulse{
+    0%,100%{transform:scale(.85);opacity:.7;} 50%{transform:scale(1);opacity:1;}
+  }
+
+  .cursor-glow{
+    position:fixed; top:0; left:0;
+    width:420px; height:420px; border-radius:50%; pointer-events:none;
+    background:radial-gradient(circle,
+      rgba(0,229,255,.06) 0%, rgba(0,229,255,.045) 25%,
+      rgba(0,229,255,.02) 50%, rgba(0,229,255,.005) 72%,
+      rgba(0,229,255,0) 88%);
+    transform:translate(-50%,-50%);
+    z-index:0; transition:opacity .4s ease; will-change:transform;
+  }
+  @media (hover:none){.cursor-glow{display:none;}}
+
+  header.site{
+    padding:22px 0; border-bottom:1px solid var(--border);
+    position:sticky; top:0;
+    background:rgba(21,24,28,.82);
+    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    z-index:50;
+    transition:box-shadow .3s ease, border-color .3s ease;
+  }
+  header.site.scrolled{
+    box-shadow:0 8px 30px rgba(0,0,0,.35);
+    border-bottom-color:rgba(0,229,255,.18);
+  }
+  .nav{
+    display:flex; justify-content:space-between; align-items:center;
+    max-width:var(--container); margin:0 auto; padding:0 40px;
+  }
+  .nav .mark{
+    font-family:'Inter',sans-serif; font-weight:800; font-size:18px;
+    letter-spacing:-0.025em; color:var(--text); text-decoration:none;
+    position:relative; transition:color .25s var(--ease-out);
+  }
+  .nav .mark::after{
+    content:''; position:absolute; left:0; bottom:-3px;
+    width:0; height:1px; background:var(--accent);
+    transition:width .3s var(--ease-out);
+  }
+  .nav .mark:hover{color:var(--accent);}
+  .nav .mark:hover::after{width:100%;}
+  .nav a.ghlink{
+    color:var(--muted); text-decoration:none; font-size:14px;
+    font-family:'JetBrains Mono','SF Mono',monospace;
+    border:1px solid var(--border); padding:7px 16px; border-radius:5px;
+    position:relative; overflow:hidden;
+    transition:border-color .25s var(--ease-out),
+               color .25s var(--ease-out),
+               transform .18s var(--ease-spring),
+               box-shadow .3s var(--ease-out);
+    will-change:transform;
+  }
+  .nav a.ghlink::before{
+    content:''; position:absolute; inset:0;
+    background:radial-gradient(circle at var(--mx,50%) var(--my,50%),
+               rgba(0,229,255,.18) 0%, rgba(0,229,255,.08) 35%,
+               rgba(0,229,255,0) 65%);
+    opacity:0; transition:opacity .3s var(--ease-out);
+  }
+  .nav a.ghlink:hover{
+    border-color:var(--accent-dim); color:var(--accent);
+    box-shadow:0 0 18px rgba(0,229,255,.12);
+  }
+  .nav a.ghlink:hover::before{opacity:1;}
+  .nav a.ghlink:active{transform:scale(.95);}
+
+  .hero{padding:110px 0 72px;}
+
+  .status-flip-scene{
+    display:inline-block; position:relative;
+    perspective:800px; margin-bottom:26px;
+    height:3em; vertical-align:top;
+  }
+  .status-flip{
+    position:relative; width:15em; height:3em;
+    font-size:12px; font-weight:500;
+    letter-spacing:.12em; text-transform:uppercase;
+    cursor:pointer; transform-style:preserve-3d;
+    transform-origin:100% 50%;
+    transition:transform .85s cubic-bezier(.17,.67,.14,.93);
+    will-change:transform;
+  }
+  .status-flip:hover,
+  .status-flip-scene:focus-visible .status-flip,
+  .status-flip-scene:focus-within .status-flip{transform:rotateX(-90deg);}
+  .status-flip .face{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:20px; box-sizing:border-box;
+    backface-visibility:hidden;
+  }
+  .status-flip .face--front{
+    background:var(--accent-soft); color:var(--accent);
+    border:1px solid var(--accent-dim);
+    transform:translate3d(0,0,1.5em);
+    box-shadow:0 0 0 0 rgba(0,229,255,0);
+    transition:box-shadow .4s var(--ease-out);
+  }
+  .status-flip .face--top{
+    background:var(--accent); color:var(--bg);
+    border:1px solid var(--accent);
+    transform:rotateX(90deg) translate3d(0,0,1.5em);
+    box-shadow:0 0 22px rgba(0,229,255,.35);
+  }
+  .status-flip-scene:focus-visible{
+    outline:2px solid var(--accent); outline-offset:6px; border-radius:24px;
+  }
+  .status-flip:hover .face--front{
+    box-shadow:0 0 24px rgba(0,229,255,.28);
+  }
+
+  .hero h1{max-width:16ch; margin-bottom:22px; font-weight:900; font-size:64px;}
+  .hero p.lede{
+    font-size:18px; color:var(--muted); max-width:70ch; line-height:1.65;
+  }
+
+  .reveal{
+    opacity:0; transform:translateY(22px);
+    transition:opacity .7s var(--ease-out), transform .7s var(--ease-out);
+    will-change:opacity,transform;
+  }
+  .reveal.is-visible{opacity:1;transform:none;}
+  .reveal-stagger > *{
+    opacity:0; transform:translateY(18px);
+    transition:opacity .6s var(--ease-out), transform .6s var(--ease-out);
+  }
+  .reveal-stagger.is-visible > *{opacity:1;transform:none;}
+  .reveal-stagger.is-visible > *:nth-child(1){transition-delay:0ms;}
+  .reveal-stagger.is-visible > *:nth-child(2){transition-delay:110ms;}
+  .reveal-stagger.is-visible > *:nth-child(3){transition-delay:220ms;}
+  .reveal-stagger.is-visible > *:nth-child(4){transition-delay:330ms;}
+  .reveal-stagger.is-visible > *:nth-child(5){transition-delay:440ms;}
+  .reveal-stagger.is-visible > *:nth-child(6){transition-delay:550ms;}
+
+  section{
+    padding:72px 0;
+    border-top:1px solid var(--border);
+  }
+  section h2{
+    margin-bottom:22px; position:relative; display:inline-block;
+    font-weight:800; font-size:36px;
+  }
+  section h2::after{
+    content:''; position:absolute; left:0; bottom:-8px;
+    width:0; height:3px;
+    background:linear-gradient(90deg,
+      rgba(0,229,255,1) 0%, rgba(0,229,255,.75) 25%,
+      rgba(0,229,255,.4) 50%, rgba(0,229,255,.15) 75%,
+      rgba(0,229,255,0) 100%);
+    transition:width .5s var(--ease-out) .15s;
+  }
+  section.is-visible h2::after{width:80px;}
+
+  section p{
+    color:var(--muted); max-width:78ch;
+    font-size:16px; line-height:1.7;
+  }
+  section p + p{margin-top:12px;}
+
+  .split{
+    display:grid; grid-template-columns:1fr; gap:32px; margin-top:12px;
+  }
+  @media(min-width:820px){
+    .split{grid-template-columns:1fr 1fr;}
+  }
+
+  .tilt-card{
+    position:relative;
+    display:grid;
+    grid-template-columns:repeat(5, 1fr);
+    grid-template-rows:repeat(5, 1fr);
+    width:100%; height:340px;
+    perspective:800px; transform-style:preserve-3d;
+  }
+  .tr-1  { grid-area:1 / 1; } .tr-2  { grid-area:1 / 2; }
+  .tr-3  { grid-area:1 / 3; } .tr-4  { grid-area:1 / 4; }
+  .tr-5  { grid-area:1 / 5; } .tr-6  { grid-area:2 / 1; }
+  .tr-7  { grid-area:2 / 2; } .tr-8  { grid-area:2 / 3; }
+  .tr-9  { grid-area:2 / 4; } .tr-10 { grid-area:2 / 5; }
+  .tr-11 { grid-area:3 / 1; } .tr-12 { grid-area:3 / 2; }
+  .tr-13 { grid-area:3 / 3; } .tr-14 { grid-area:3 / 4; }
+  .tr-15 { grid-area:3 / 5; } .tr-16 { grid-area:4 / 1; }
+  .tr-17 { grid-area:4 / 2; } .tr-18 { grid-area:4 / 3; }
+  .tr-19 { grid-area:4 / 4; } .tr-20 { grid-area:4 / 5; }
+  .tr-21 { grid-area:5 / 1; } .tr-22 { grid-area:5 / 2; }
+  .tr-23 { grid-area:5 / 3; } .tr-24 { grid-area:5 / 4; }
+  .tr-25 { grid-area:5 / 5; }
+
+  .tilt-card > [class^="tr-"]{z-index:2;}
+
+  .tilt-card__face{
+    grid-area:1 / 1 / 6 / 6;
+    position:relative; z-index:1;
+    border-radius:12px; padding:32px;
+    background:linear-gradient(135deg,
+      #1E2329 0%, #1D2127 18%, #1B1F25 35%, #191D23 52%,
+      #171B21 68%, #141820 85%, #0F1D2A 100%);
+    border:1px solid rgba(0,229,255,.18);
+    box-shadow:
+      inset 0 0 0 1px rgba(0,229,255,.05),
+      inset 0 1px 0 rgba(0,229,255,.08),
+      0 1px 0 rgba(0,0,0,.4);
+    transition:transform .15s ease-in-out,
+               box-shadow .35s var(--ease-out),
+               border-color .35s var(--ease-out);
+    display:flex; flex-direction:column; justify-content:center;
+    will-change:transform; overflow:hidden; isolation:isolate;
+  }
+  .tilt-card__face::after{
+    content:''; position:absolute; inset:0;
+    background-image:var(--noise);
+    background-size:160px 160px;
+    opacity:.045; pointer-events:none;
+    mix-blend-mode:overlay; border-radius:inherit; z-index:0;
+  }
+  .tilt-card__face > *{position:relative; z-index:1;}
+
+  .tilt-card:hover .tilt-card__face{
+    border-color:rgba(0,229,255,.4);
+    box-shadow:
+      inset 0 0 0 1px rgba(0,229,255,.12),
+      inset 0 1px 0 rgba(0,229,255,.15),
+      0 20px 45px rgba(0,0,0,.45), 0 0 60px rgba(0,229,255,.1);
+  }
+  .tilt-card__title{
+    font-family:'Inter',sans-serif; font-weight:800; font-size:20px;
+    letter-spacing:-0.025em; color:var(--text); margin-bottom:10px;
+  }
+  .tilt-card__body{font-size:15px; color:var(--muted); line-height:1.65;}
+
+  .tr-1:hover  ~ .tilt-card__face { transform: rotateX(20deg)  rotateY(-10deg); }
+  .tr-2:hover  ~ .tilt-card__face { transform: rotateX(20deg)  rotateY(-5deg);  }
+  .tr-3:hover  ~ .tilt-card__face { transform: rotateX(20deg)  rotateY(0deg);   }
+  .tr-4:hover  ~ .tilt-card__face { transform: rotateX(20deg)  rotateY(5deg);   }
+  .tr-5:hover  ~ .tilt-card__face { transform: rotateX(20deg)  rotateY(10deg);  }
+  .tr-6:hover  ~ .tilt-card__face { transform: rotateX(10deg)  rotateY(-10deg); }
+  .tr-7:hover  ~ .tilt-card__face { transform: rotateX(10deg)  rotateY(-5deg);  }
+  .tr-8:hover  ~ .tilt-card__face { transform: rotateX(10deg)  rotateY(0deg);   }
+  .tr-9:hover  ~ .tilt-card__face { transform: rotateX(10deg)  rotateY(5deg);   }
+  .tr-10:hover ~ .tilt-card__face { transform: rotateX(10deg)  rotateY(10deg);  }
+  .tr-11:hover ~ .tilt-card__face { transform: rotateX(0deg)   rotateY(-10deg); }
+  .tr-12:hover ~ .tilt-card__face { transform: rotateX(0deg)   rotateY(-5deg);  }
+  .tr-13:hover ~ .tilt-card__face { transform: rotateX(0deg)   rotateY(0deg);   }
+  .tr-14:hover ~ .tilt-card__face { transform: rotateX(0deg)   rotateY(5deg);   }
+  .tr-15:hover ~ .tilt-card__face { transform: rotateX(0deg)   rotateY(10deg);  }
+  .tr-16:hover ~ .tilt-card__face { transform: rotateX(-10deg) rotateY(-10deg); }
+  .tr-17:hover ~ .tilt-card__face { transform: rotateX(-10deg) rotateY(-5deg);  }
+  .tr-18:hover ~ .tilt-card__face { transform: rotateX(-10deg) rotateY(0deg);   }
+  .tr-19:hover ~ .tilt-card__face { transform: rotateX(-10deg) rotateY(5deg);   }
+  .tr-20:hover ~ .tilt-card__face { transform: rotateX(-10deg) rotateY(10deg);  }
+  .tr-21:hover ~ .tilt-card__face { transform: rotateX(-20deg) rotateY(-10deg); }
+  .tr-22:hover ~ .tilt-card__face { transform: rotateX(-20deg) rotateY(-5deg);  }
+  .tr-23:hover ~ .tilt-card__face { transform: rotateX(-20deg) rotateY(0deg);   }
+  .tr-24:hover ~ .tilt-card__face { transform: rotateX(-20deg) rotateY(5deg);   }
+  .tr-25:hover ~ .tilt-card__face { transform: rotateX(-20deg) rotateY(10deg);  }
+
+  .noselect{
+    -webkit-touch-callout:none;
+    -webkit-user-select:none;
+    -moz-user-select:none;
+    -ms-user-select:none;
+    user-select:none;
+  }
+
+  .diagram-framework,
+  .diagram-dataset{
+    --panel-inner:#0F1D2A;
+    --text-strong:#F5F7FA;
+    --tube-bg:#0B1119;
+    --tube-inner:#070B10;
+    position:relative;
+    margin:28px 0 8px;
+    padding:16px 12px;
+    border-radius:12px;
+    overflow-x:auto;
+    overflow-y:hidden;
+    contain:content;
+  }
+  .diagram-framework svg{ width:100%; height:auto; min-width:900px; max-width:100%; display:block; }
+  .diagram-dataset svg  { width:100%; height:auto; min-width:720px; max-width:100%; display:block; }
+
+  .diagram-cap{
+    font-size:13px; color:var(--muted); margin-top:12px; text-align:center;
+  }
+
+  .diagram-framework, .diagram-dataset{
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;
+    scrollbar-color:var(--accent-dim) transparent;
+  }
+  .diagram-framework::-webkit-scrollbar,
+  .diagram-dataset::-webkit-scrollbar{ height:6px; }
+  .diagram-framework::-webkit-scrollbar-thumb,
+  .diagram-dataset::-webkit-scrollbar-thumb{ background:var(--accent-dim); border-radius:3px; }
+  .diagram-framework::-webkit-scrollbar-track,
+  .diagram-dataset::-webkit-scrollbar-track{ background:transparent; }
+
+  .diagram-framework::after,
+  .diagram-dataset::after{
+    content:''; position:absolute; top:16px; bottom:16px; right:0;
+    width:36px; pointer-events:none;
+    background:linear-gradient(to right, transparent, var(--bg) 88%);
+    opacity:0; transition:opacity .3s var(--ease-out);
+  }
+  .diagram-framework.has-overflow::after,
+  .diagram-dataset.has-overflow::after{ opacity:1; }
+  .diagram-framework.scrolled-end::after,
+  .diagram-dataset.scrolled-end::after{ opacity:0; }
+
+  .diagram-scroll-hint{
+    position:absolute; top:10px; right:12px; z-index:2;
+    font-family:'JetBrains Mono','SF Mono',monospace;
+    font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--muted); background:var(--panel); border:1px solid var(--border);
+    border-radius:4px; padding:3px 8px; pointer-events:none;
+    opacity:0; transition:opacity .3s var(--ease-out);
+    display:flex; align-items:center; gap:5px;
+  }
+  .diagram-framework.has-overflow .diagram-scroll-hint,
+  .diagram-dataset.has-overflow .diagram-scroll-hint{ opacity:1; }
+  .diagram-framework.scrolled-end .diagram-scroll-hint,
+  .diagram-dataset.scrolled-end .diagram-scroll-hint{ opacity:0; }
+
+  .diagram-framework .cvaf-title{ fill:var(--text-strong); font-family:'Inter',sans-serif; font-weight:800; font-size:18px; letter-spacing:-0.02em; }
+  .diagram-framework .cvaf-sub{ fill:var(--muted); font-family:'Inter',sans-serif; font-weight:500; font-size:12.5px; }
+  .diagram-framework .cvaf-eyebrow{ fill:var(--accent); font-family:'Inter',sans-serif; font-weight:800; font-size:11.5px; letter-spacing:0.16em; }
+  .diagram-framework .cvaf-phase-num{ fill:var(--accent); font-family:'Inter',sans-serif; font-weight:700; font-size:11.5px; letter-spacing:0.14em; }
+  .diagram-framework .cvaf-phase-nm{ fill:var(--text-strong); font-family:'Inter',sans-serif; font-weight:800; font-size:20px; letter-spacing:-0.02em; }
+  .diagram-framework .cvaf-phase-sub{ fill:var(--muted); font-family:'Inter',sans-serif; font-weight:500; font-size:12px; }
+  .diagram-framework .cvaf-info{ fill:var(--text); font-family:'Inter',sans-serif; font-weight:600; font-size:13px; letter-spacing:-0.005em; }
+  .diagram-framework .cvaf-body{ fill:var(--text); font-family:'Inter',sans-serif; font-weight:600; font-size:13px; }
+  .diagram-framework .cvaf-body-sm{ fill:var(--muted); font-family:'Inter',sans-serif; font-weight:500; font-size:12px; }
+  .diagram-framework .cvaf-body-strong{ fill:var(--text-strong); font-family:'Inter',sans-serif; font-weight:700; font-size:13.5px; }
+  .diagram-framework .cvaf-mono{ fill:var(--text); font-family:'JetBrains Mono',monospace; font-weight:500; font-size:11.5px; }
+  .diagram-framework .cvaf-mono-strong{ fill:var(--text); font-family:'JetBrains Mono',monospace; font-weight:600; font-size:12px; }
+  .diagram-framework .cvaf-mono-accent{ fill:var(--accent); font-family:'JetBrains Mono',monospace; font-weight:600; font-size:12px; }
+  .diagram-framework .cvaf-tag{ fill:var(--accent); font-family:'Inter',sans-serif; font-weight:700; font-size:11px; letter-spacing:0.14em; }
+  .diagram-framework .cvaf-tag-inner{ fill:var(--accent); font-family:'Inter',sans-serif; font-weight:700; font-size:10.5px; letter-spacing:0.16em; }
+  .diagram-framework .cvaf-box{
+    fill:var(--panel);
+    stroke:var(--border);
+    stroke-width:1;
+    filter:drop-shadow(0 3px 4px rgba(0,0,0,0.4));
+  }
+  .diagram-framework .cvaf-inner{ fill:var(--panel-inner); stroke:var(--border); stroke-width:0.75; }
+  .diagram-framework .cvaf-vsep{ stroke:var(--border); stroke-width:1; opacity:0.7; }
+  .diagram-framework .tube-shell{ fill:var(--tube-bg); stroke:var(--edge); stroke-width:0.75; }
+  .diagram-framework .tube-core{ fill:url(#fwCoreGradient); }
+  .diagram-framework .pulse{}
+
+  .diagram-dataset .cvaf-title{ fill:var(--text-strong); font-family:'Inter',sans-serif; font-weight:800; font-size:18px; letter-spacing:-0.02em; }
+  .diagram-dataset .cvaf-sub{ fill:var(--muted); font-family:'Inter',sans-serif; font-weight:500; font-size:12.5px; }
+  .diagram-dataset .cvaf-eyebrow{ fill:var(--accent); font-family:'Inter',sans-serif; font-weight:800; font-size:11.5px; letter-spacing:0.16em; }
+  .diagram-dataset .cvaf-phase-num{ fill:var(--accent); font-family:'Inter',sans-serif; font-weight:700; font-size:11px; letter-spacing:0.14em; }
+  .diagram-dataset .cvaf-phase-nm{ fill:var(--text-strong); font-family:'Inter',sans-serif; font-weight:800; font-size:16px; letter-spacing:-0.015em; }
+  .diagram-dataset .cvaf-detail{ fill:var(--muted); font-family:'Inter',sans-serif; font-weight:500; font-size:12px; }
+  .diagram-dataset .cvaf-tag{ fill:var(--accent); font-family:'Inter',sans-serif; font-weight:700; font-size:10.5px; letter-spacing:0.14em; }
+  .diagram-dataset .vm-title{ fill:var(--text-strong); font-family:'Inter',sans-serif; font-weight:800; font-size:16px; letter-spacing:-0.015em; }
+  .diagram-dataset .vm-sub{ fill:var(--muted); font-family:'Inter',sans-serif; font-weight:500; font-size:12px; }
+  .diagram-dataset .vm-tag{ fill:var(--accent); font-family:'Inter',sans-serif; font-weight:700; font-size:10.5px; letter-spacing:0.14em; }
+  .diagram-dataset .flow-label{ fill:var(--accent); font-family:'Inter',sans-serif; font-weight:700; font-size:11px; letter-spacing:0.06em; }
+  .diagram-dataset .flow-label-muted{ fill:var(--muted); font-family:'Inter',sans-serif; font-weight:500; font-size:11px; }
+  .diagram-dataset .cvaf-box{
+    fill:var(--panel);
+    stroke:var(--border);
+    stroke-width:1;
+    filter:drop-shadow(0 3px 4px rgba(0,0,0,0.4));
+  }
+  .diagram-dataset .cvaf-box-edge{
+    fill:var(--panel);
+    stroke:var(--accent-dim);
+    stroke-width:1.4;
+    filter:drop-shadow(0 3px 4px rgba(0,0,0,0.4));
+  }
+  .diagram-dataset .cvaf-sep{ stroke:var(--border); stroke-width:1; }
+  .diagram-dataset .loop-container{ fill:rgba(0,229,255,.025); stroke:var(--edge); stroke-width:1.2; stroke-dasharray:5 5; }
+  .diagram-dataset .loop-container-label{ fill:var(--accent); font-family:'Inter',sans-serif; font-weight:700; font-size:11px; letter-spacing:0.16em; }
+  .diagram-dataset .loop-container-sub{ fill:var(--muted); font-family:'Inter',sans-serif; font-weight:500; font-size:11px; }
+  .diagram-dataset .loopback{ fill:none; stroke:var(--accent-dim); stroke-width:1.2; stroke-dasharray:4 5; marker-end:url(#dsLoopArrow); opacity:0.7; }
+  .diagram-dataset .loopback-label-bg{ fill:var(--bg); }
+  .diagram-dataset .loopback-label{ fill:var(--muted); font-family:'Inter',sans-serif; font-weight:600; font-size:10.5px; letter-spacing:0.14em; }
+  .diagram-dataset .tube-shell{ fill:var(--tube-bg); stroke:var(--edge); stroke-width:0.75; }
+  .diagram-dataset .tube-core{ fill:url(#dsCoreGradient); }
+  .diagram-dataset .pulse{}
+
+  .diagram-framework .phase,
+  .diagram-dataset .phase{
+    opacity:0; transform:translateY(6px);
+    animation:phaseIn 0.5s ease-out forwards;
+    transition:opacity 0.2s ease;
+  }
+  .diagram-framework .phase.dimmed,
+  .diagram-dataset .phase.dimmed{ opacity:0.4; }
+  .diagram-framework .phase.active .cvaf-box,
+  .diagram-dataset .phase.active .cvaf-box{ stroke:var(--accent); stroke-width:1.4; }
+  .diagram-dataset .phase.active .cvaf-box-edge{ stroke:var(--accent); stroke-width:1.6; }
+  @keyframes phaseIn{ to{ opacity:1; transform:translateY(0); } }
+
+  @media (prefers-reduced-motion:reduce){
+    .diagram-framework .phase,
+    .diagram-dataset .phase{ animation:none; opacity:1; transform:none; }
+    .diagram-framework .pulse,
+    .diagram-dataset .pulse{ display:none; }
+    .diagram-dataset .loopback{ stroke-dasharray:none; opacity:0.5; }
+  }
+
+  .methodrow{display:flex; flex-wrap:wrap; gap:12px; margin-top:16px;}
+  .pill{
+    font-size:13.5px; font-weight:400; color:var(--text);
+    background:var(--panel); border:1px solid var(--border);
+    padding:8px 14px; border-radius:6px; cursor:default;
+    transition:transform .2s var(--ease-spring),
+               border-color .25s var(--ease-out),
+               box-shadow .3s var(--ease-out),
+               color .25s var(--ease-out);
+  }
+  .pill:hover{
+    transform:translateY(-3px);
+    border-color:var(--accent-dim); color:var(--accent);
+    box-shadow:0 8px 20px rgba(0,0,0,.3), 0 0 0 1px rgba(0,229,255,.1);
+  }
+
+  footer{
+    padding:56px 0 72px;
+    border-top:1px solid var(--border);
+  }
+  footer p{color:var(--muted); font-size:14.5px; max-width:78ch;}
+  footer .links{margin-top:18px; display:flex; gap:22px; flex-wrap:wrap;}
+  footer a{
+    color:var(--accent); text-decoration:none; font-size:14px;
+    font-family:'JetBrains Mono','SF Mono',monospace;
+    position:relative; padding-bottom:2px;
+    transition:color .25s var(--ease-out), transform .18s var(--ease-spring);
+    display:inline-block;
+  }
+  footer a::after{
+    content:''; position:absolute; left:0; bottom:0;
+    width:0; height:1px; background:var(--accent);
+    transition:width .3s var(--ease-out);
+  }
+  footer a:hover::after{width:100%;}
+  footer a:active{transform:scale(.95);}
+
+  .tilt-card{cursor:pointer;}
+  .tilt-card:focus-visible{
+    outline:2px solid var(--accent); outline-offset:6px; border-radius:12px;
+  }
+  .tilt-card.is-active .tilt-card__face{
+    border-color:rgba(0,229,255,.55);
+    box-shadow:
+      inset 0 0 0 1px rgba(0,229,255,.15),
+      0 20px 45px rgba(0,0,0,.45),
+      0 0 60px rgba(0,229,255,.16);
+  }
+  .tilt-card__flag{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--accent); opacity:0;
+    transition:opacity .3s var(--ease-out);
+    margin-bottom:12px; display:inline-flex; align-items:center; gap:8px;
+    align-self:flex-start;
+  }
+  .tilt-card.is-active .tilt-card__flag{opacity:1;}
+  .tilt-card__flag::before{
+    content:''; width:6px; height:6px; border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 8px var(--accent), 0 0 16px rgba(0,229,255,.5);
+    animation:flagPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes flagPulse{
+    0%,100%{opacity:1;transform:scale(1);}
+    50%    {opacity:.4;transform:scale(.7);}
+  }
+  @media (max-width:639px){
+    .tilt-card__flag{align-self:center;}
+  }
+
+  .project-tabs{
+    position:relative;
+    margin-top:22px;
+    height:2px;
+    background:var(--border);
+    border-radius:2px;
+    overflow:hidden;
+  }
+  .project-tabs__thumb{
+    position:absolute;
+    top:0; left:0;
+    height:100%;
+    width:50%;
+    background:linear-gradient(90deg,
+      rgba(0,229,255,.15) 0%,
+      rgba(0,229,255,.9) 45%,
+      rgba(0,229,255,.9) 55%,
+      rgba(0,229,255,.15) 100%);
+    border-radius:2px;
+    box-shadow:0 0 16px rgba(0,229,255,.55);
+    transform:translateX(0);
+    transition:transform .55s var(--ease-slide),
+               opacity .3s var(--ease-out);
+    will-change:transform,opacity;
+  }
+  .project-tabs__thumb[data-side="cvaf"]{ transform:translateX(0); }
+  .project-tabs__thumb[data-side="ds"]  { transform:translateX(100%); }
+  .project-tabs__thumb.is-preview{ opacity:.4; }
+  @media (max-width:819px){
+    .project-tabs{display:none;}
+  }
+
+  .panel{display:none;}
+  .panel.is-active{display:block;}
+
+  .panel.is-active.is-leaving{
+    animation:panelOut .28s cubic-bezier(.4,0,.6,1) forwards;
+    pointer-events:none;
+  }
+  @keyframes panelOut{
+    from{opacity:1; transform:translateY(0);}
+    to  {opacity:0; transform:translateY(-10px);}
+  }
+
+  .panel.is-active.is-switching{
+    animation:panelIn .55s cubic-bezier(.22,.61,.36,1) both;
+    will-change:opacity, transform;
+  }
+  @keyframes panelIn{
+    from{opacity:0; transform:translateY(18px);}
+    to  {opacity:1; transform:translateY(0);}
+  }
+
+  .finding-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+    gap:16px; margin-top:20px;
+  }
+  .finding-card{
+    background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:18px 20px;
+    transition:transform .2s var(--ease-spring),
+               border-color .25s var(--ease-out),
+               box-shadow .3s var(--ease-out);
+  }
+  .finding-card:hover{
+    transform:translateY(-3px);
+    border-color:var(--accent-dim);
+    box-shadow:0 8px 20px rgba(0,0,0,.3), 0 0 0 1px rgba(0,229,255,.08);
+  }
+  .finding-card .flbl{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--accent); display:block; margin-bottom:8px;
+  }
+  .finding-card p{
+    font-size:14px; color:var(--muted); line-height:1.6;
+    margin:0; max-width:none;
+  }
+  .note-line{
+    font-size:13px; color:var(--muted); margin-top:20px;
+    font-family:'JetBrains Mono',monospace; opacity:.85;
+  }
+
+  @media (max-width: 639px){
+    .wrap{padding:0 22px;}
+    .nav{padding:0 22px;}
+
+    .hero{text-align:center; padding-top:72px; padding-bottom:48px;}
+    .hero h1{margin-left:auto; margin-right:auto; font-size:38px; max-width:18ch;}
+    .hero p.lede{margin-left:auto; margin-right:auto; font-size:16px;}
+    .status-flip-scene{display:inline-block;}
+
+    h2{font-size:28px;}
+    section h2{display:block; text-align:center;}
+    section h2::after{left:50%; transform:translateX(-50%);}
+    section.is-visible h2::after{width:64px;}
+    section p{text-align:center; margin-left:auto; margin-right:auto; font-size:15px;}
+
+    .methodrow{justify-content:center;}
+
+    .tilt-card{height:280px;}
+    .tilt-card__face{text-align:center; align-items:center; padding:24px;}
+    .tilt-card__title{font-size:18px;}
+
+    .diagram-cap{text-align:center;}
+
+    footer{text-align:center;}
+    footer p{margin-left:auto; margin-right:auto;}
+    footer .links{justify-content:center;}
+  }
+
+  @media (min-width:640px) and (max-width:1023px){
+    .wrap{padding:0 32px;}
+    .nav{padding:0 32px;}
+    h1{font-size:52px;}
+    h2{font-size:32px;}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{
+      animation-duration:.001ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:.001ms !important;
+    }
+    .reveal,.reveal-stagger > *{opacity:1;transform:none;}
+    .cursor-glow{display:none;}
+    .status-flip{transition-duration:.001ms;}
+    .tilt-card__face{transition-duration:.001ms;}
+    .preloader__label{animation:none;}
+    .loader-simple__ring,
+    .loader-simple__core,
+    .loader-simple__dot{animation:none;}
+    .tilt-card__flag::before{animation:none;}
+    .project-tabs__thumb{transition-duration:.001ms;}
+    .panel.is-active.is-switching{animation:none;}
+    .panel.is-active.is-leaving{animation:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="preloader" id="preloader" aria-hidden="true">
+  <div class="loader-simple">
+    <span class="loader-simple__ring"></span>
+    <span class="loader-simple__core"></span>
+    <span class="loader-simple__dot"></span>
+  </div>
+  <div class="preloader__label">Initializing <b>CVAF</b> …</div>
+</div>
+
+<div class="cursor-glow" id="cursorGlow" aria-hidden="true"></div>
+
+<header class="site" id="siteHeader">
+  <div class="nav">
+    <a class="mark" href="#top">CVAF Research</a>
+    <a class="ghlink" href="#" target="_blank" rel="noopener" id="magneticBtn">GitHub ↗</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="hero" id="top">
+    <div class="status-flip-scene"
+         role="img"
+         aria-label="Research Project — Final Year Project (FYP)"
+         tabindex="0">
+      <div class="status-flip">
+        <span class="face face--front">Research Project</span>
+        <span class="face face--top">FYP</span>
+      </div>
+    </div>
+    <h1 class="reveal">Cloud VM Workload Forensics</h1>
+    <p class="lede reveal" style="transition-delay:.1s">
+      A research project investigating host-level forensic evidence collection,
+      chain-of-custody preservation, and hybrid anomaly detection for cloud IaaS
+      Linux workloads.
+    </p>
+  </div>
+
+  <section id="overview" class="reveal">
+    <h2>What this is</h2>
+    <div class="split reveal-stagger">
+
+      <div class="tilt-card noselect is-active" data-project="cvaf" role="button" tabindex="0" aria-pressed="true" aria-label="Show CVAF framework details">
+        <div class="tr-1"></div><div class="tr-2"></div><div class="tr-3"></div>
+        <div class="tr-4"></div><div class="tr-5"></div><div class="tr-6"></div>
+        <div class="tr-7"></div><div class="tr-8"></div><div class="tr-9"></div>
+        <div class="tr-10"></div><div class="tr-11"></div><div class="tr-12"></div>
+        <div class="tr-13"></div><div class="tr-14"></div><div class="tr-15"></div>
+        <div class="tr-16"></div><div class="tr-17"></div><div class="tr-18"></div>
+        <div class="tr-19"></div><div class="tr-20"></div><div class="tr-21"></div>
+        <div class="tr-22"></div><div class="tr-23"></div><div class="tr-24"></div>
+        <div class="tr-25"></div>
+        <div class="tilt-card__face">
+          <span class="tilt-card__flag">Viewing</span>
+          <h3 class="tilt-card__title">CVAF | the framework</h3>
+          <p class="tilt-card__body">
+            A seven-phase forensic pipeline for Linux VM workloads covering
+            auditd-based evidence acquisition, cryptographic chain-of-custody,
+            semantic normalization toward an OCSF-aligned representation,
+            hybrid statistical and heuristic anomaly detection, knowledge-graph
+            construction, visualization, and forensic reporting.
+          </p>
+        </div>
+      </div>
+
+      <div class="tilt-card noselect" data-project="ds" role="button" tabindex="0" aria-pressed="false" aria-label="Show CVAF-DS dataset details">
+        <div class="tr-1"></div><div class="tr-2"></div><div class="tr-3"></div>
+        <div class="tr-4"></div><div class="tr-5"></div><div class="tr-6"></div>
+        <div class="tr-7"></div><div class="tr-8"></div><div class="tr-9"></div>
+        <div class="tr-10"></div><div class="tr-11"></div><div class="tr-12"></div>
+        <div class="tr-13"></div><div class="tr-14"></div><div class="tr-15"></div>
+        <div class="tr-16"></div><div class="tr-17"></div><div class="tr-18"></div>
+        <div class="tr-19"></div><div class="tr-20"></div><div class="tr-21"></div>
+        <div class="tr-22"></div><div class="tr-23"></div><div class="tr-24"></div>
+        <div class="tr-25"></div>
+        <div class="tilt-card__face">
+          <span class="tilt-card__flag">Viewing</span>
+          <h3 class="tilt-card__title">CVAF-DS | the dataset</h3>
+          <p class="tilt-card__body">
+            A controlled dataset collected from full-boot KVM virtual machines
+            using native Linux auditd. The collection includes host-level
+            activity such as kernel module operations, credential-file changes,
+            persistence mechanisms, and other events relevant to VM forensics.
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="project-tabs" aria-hidden="true">
+      <span class="project-tabs__thumb" id="projectThumb" data-side="cvaf"></span>
+    </div>
+  </section>
+
+  <div class="panel is-active" data-panel="cvaf">
+
+  <section id="architecture" class="reveal">
+    <h2>Architecture</h2>
+    <p>
+      The CVAF framework is a seven-phase pipeline. Evidence flows from
+      kernel-level acquisition through cryptographic integrity, OCSF-aligned
+      normalization, hybrid detection, per-feature attribution, knowledge-graph
+      construction, and finally reporting. Each phase is detailed below with
+      what it produces and how it feeds the next.
+    </p>
+
+    <div class="diagram-framework">
+      <span class="diagram-scroll-hint" aria-hidden="true">⇄ scroll</span>
+      <svg viewBox="0 0 1200 1700" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CVAF framework architecture: seven sequential phases from acquisition through reporting, laid out vertically.">
+        <defs>
+          <linearGradient id="fwCoreGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--tube-inner)"/>
+            <stop offset="50%" stop-color="#0D1620"/>
+            <stop offset="100%" stop-color="var(--tube-inner)"/>
+          </linearGradient>
+          <mask id="fwTm1"><rect x="594" y="332" width="12" height="24" fill="white"/></mask>
+          <mask id="fwTm2"><rect x="594" y="547" width="12" height="24" fill="white"/></mask>
+          <mask id="fwTm3"><rect x="594" y="762" width="12" height="24" fill="white"/></mask>
+          <mask id="fwTm4"><rect x="594" y="977" width="12" height="24" fill="white"/></mask>
+          <mask id="fwTm5"><rect x="594" y="1192" width="12" height="24" fill="white"/></mask>
+          <mask id="fwTm6"><rect x="594" y="1407" width="12" height="24" fill="white"/></mask>
+        </defs>
+
+        <text x="600" y="32" text-anchor="middle" class="cvaf-title">CVAF FRAMEWORK</text>
+        <text x="600" y="54" text-anchor="middle" class="cvaf-sub">Seven-phase forensic pipeline for Linux VM workloads in cloud IaaS</text>
+
+        <text x="30" y="100" class="cvaf-eyebrow">INPUT</text>
+        <text x="30" y="120" class="cvaf-info">Live Linux VM workloads running inside cloud IaaS Linux guests</text>
+
+        <g class="phase" data-phase="1" style="animation-delay:0.02s">
+          <rect x="30" y="150" width="1140" height="175" rx="10" class="cvaf-box"/>
+          <text x="55" y="196" class="cvaf-phase-num">PHASE 1</text>
+          <text x="55" y="230" class="cvaf-phase-nm">Acquisition</text>
+          <text x="55" y="262" class="cvaf-phase-sub">Kernel-level</text>
+          <text x="55" y="282" class="cvaf-phase-sub">evidence capture</text>
+          <line x1="245" y1="175" x2="245" y2="300" class="cvaf-vsep"/>
+
+          <rect x="270" y="180" width="320" height="115" rx="6" class="cvaf-inner"/>
+          <text x="430" y="208" text-anchor="middle" class="cvaf-tag-inner">KERNEL SPACE</text>
+          <text x="430" y="236" text-anchor="middle" class="cvaf-body-strong">audit subsystem</text>
+          <text x="430" y="262" text-anchor="middle" class="cvaf-body-sm">syscall hooks · filter rules</text>
+          <text x="430" y="284" text-anchor="middle" class="cvaf-mono">audit_rule dispatch</text>
+
+          <text x="608" y="240" text-anchor="middle" class="cvaf-mono-accent" style="font-size:16px">→</text>
+          <text x="608" y="264" text-anchor="middle" class="cvaf-mono" style="font-size:10px">netlink</text>
+
+          <rect x="630" y="180" width="320" height="115" rx="6" class="cvaf-inner"/>
+          <text x="790" y="208" text-anchor="middle" class="cvaf-tag-inner">USER SPACE</text>
+          <text x="790" y="236" text-anchor="middle" class="cvaf-body-strong">auditd daemon</text>
+          <text x="790" y="262" text-anchor="middle" class="cvaf-body-sm">rule dispatcher · log writer</text>
+          <text x="790" y="284" text-anchor="middle" class="cvaf-mono">audit.log stream</text>
+
+          <line x1="970" y1="175" x2="970" y2="300" class="cvaf-vsep"/>
+          <text x="990" y="208" class="cvaf-info">Native Linux auditd</text>
+          <text x="990" y="234" class="cvaf-info">Per-scenario rule set</text>
+          <text x="990" y="258" class="cvaf-info">Full-boot capture window</text>
+          <text x="990" y="288" class="cvaf-tag">KERNEL-LEVEL EVIDENCE</text>
+        </g>
+
+        <g>
+          <rect x="593" y="330" width="14" height="28" rx="7" class="tube-shell"/>
+          <rect x="595" y="332" width="10" height="24" rx="5" class="tube-core"/>
+          <g mask="url(#fwTm1)"><g id="fw-t1"></g></g>
+        </g>
+
+        <g class="phase" data-phase="2" style="animation-delay:0.10s">
+          <rect x="30" y="365" width="1140" height="175" rx="10" class="cvaf-box"/>
+          <text x="55" y="411" class="cvaf-phase-num">PHASE 2</text>
+          <text x="55" y="445" class="cvaf-phase-nm">Integrity</text>
+          <text x="55" y="477" class="cvaf-phase-sub">Cryptographic</text>
+          <text x="55" y="497" class="cvaf-phase-sub">chain-of-custody</text>
+          <line x1="245" y1="390" x2="245" y2="515" class="cvaf-vsep"/>
+
+          <text x="270" y="404" class="cvaf-tag-inner">HASH CHAIN</text>
+
+          <rect x="270" y="420" width="56" height="34" rx="4" class="cvaf-inner"/>
+          <text x="298" y="443" text-anchor="middle" class="cvaf-mono-strong" style="font-size:13px">r₁</text>
+          <text x="298" y="478" text-anchor="middle" class="cvaf-mono-accent" style="font-size:11px">H₁</text>
+
+          <text x="338" y="441" text-anchor="middle" class="cvaf-mono-accent" style="font-size:16px">→</text>
+
+          <rect x="352" y="420" width="56" height="34" rx="4" class="cvaf-inner"/>
+          <text x="380" y="443" text-anchor="middle" class="cvaf-mono-strong" style="font-size:13px">r₂</text>
+          <text x="380" y="478" text-anchor="middle" class="cvaf-mono-accent" style="font-size:11px">H₂</text>
+
+          <text x="420" y="441" text-anchor="middle" class="cvaf-mono-accent" style="font-size:16px">→</text>
+
+          <rect x="434" y="420" width="56" height="34" rx="4" class="cvaf-inner"/>
+          <text x="462" y="443" text-anchor="middle" class="cvaf-mono-strong" style="font-size:13px">r₃</text>
+          <text x="462" y="478" text-anchor="middle" class="cvaf-mono-accent" style="font-size:11px">H₃</text>
+
+          <text x="502" y="441" text-anchor="middle" class="cvaf-mono-accent" style="font-size:16px">→</text>
+
+          <rect x="516" y="420" width="56" height="34" rx="4" class="cvaf-inner"/>
+          <text x="544" y="443" text-anchor="middle" class="cvaf-mono-strong" style="font-size:13px">r₄</text>
+          <text x="544" y="478" text-anchor="middle" class="cvaf-mono-accent" style="font-size:11px">H₄</text>
+
+          <rect x="660" y="420" width="290" height="80" rx="6" class="cvaf-inner"/>
+          <text x="805" y="450" text-anchor="middle" class="cvaf-mono-strong">Hₙ = SHA-256( recₙ ‖ Hₙ₋₁ )</text>
+          <text x="805" y="480" text-anchor="middle" class="cvaf-mono-accent" style="font-size:11px">append-only ledger</text>
+
+          <line x1="970" y1="390" x2="970" y2="515" class="cvaf-vsep"/>
+          <text x="990" y="420" class="cvaf-info">SHA-256 per record</text>
+          <text x="990" y="446" class="cvaf-info">Immutable append-only</text>
+          <text x="990" y="470" class="cvaf-info">Tamper-detection</text>
+          <text x="990" y="500" class="cvaf-tag">CHAIN OF CUSTODY</text>
+        </g>
+
+        <g>
+          <rect x="593" y="545" width="14" height="28" rx="7" class="tube-shell"/>
+          <rect x="595" y="547" width="10" height="24" rx="5" class="tube-core"/>
+          <g mask="url(#fwTm2)"><g id="fw-t2"></g></g>
+        </g>
+
+        <g class="phase" data-phase="3" style="animation-delay:0.18s">
+          <rect x="30" y="580" width="1140" height="175" rx="10" class="cvaf-box"/>
+          <text x="55" y="626" class="cvaf-phase-num">PHASE 3</text>
+          <text x="55" y="660" class="cvaf-phase-nm">Normalization</text>
+          <text x="55" y="692" class="cvaf-phase-sub">Semantic</text>
+          <text x="55" y="712" class="cvaf-phase-sub">representation</text>
+          <line x1="245" y1="605" x2="245" y2="730" class="cvaf-vsep"/>
+
+          <text x="290" y="626" class="cvaf-tag-inner">RAW AUDITD</text>
+          <text x="490" y="626" class="cvaf-tag-inner">OCSF</text>
+
+          <text x="290" y="656" class="cvaf-mono-strong">type:1300</text>
+          <text x="460" y="656" text-anchor="middle" class="cvaf-mono-accent" style="font-size:14px">→</text>
+          <text x="490" y="656" class="cvaf-mono-strong">class_uid</text>
+
+          <text x="290" y="682" class="cvaf-mono-strong">pid:4521</text>
+          <text x="460" y="682" text-anchor="middle" class="cvaf-mono-accent" style="font-size:14px">→</text>
+          <text x="490" y="682" class="cvaf-mono-strong">process.pid</text>
+
+          <text x="290" y="708" class="cvaf-mono-strong">uid:0</text>
+          <text x="460" y="708" text-anchor="middle" class="cvaf-mono-accent" style="font-size:14px">→</text>
+          <text x="490" y="708" class="cvaf-mono-strong">user.uid</text>
+
+          <text x="290" y="734" class="cvaf-mono-strong">exe:bash</text>
+          <text x="460" y="734" text-anchor="middle" class="cvaf-mono-accent" style="font-size:14px">→</text>
+          <text x="490" y="734" class="cvaf-mono-strong">file.path</text>
+
+          <line x1="700" y1="605" x2="700" y2="730" class="cvaf-vsep"/>
+          <text x="720" y="656" class="cvaf-info">Field mapping</text>
+          <text x="720" y="682" class="cvaf-info">Schema alignment</text>
+          <text x="720" y="708" class="cvaf-info">Type coercion</text>
+          <text x="720" y="734" class="cvaf-info">Missing-value handling</text>
+
+          <line x1="970" y1="605" x2="970" y2="730" class="cvaf-vsep"/>
+          <text x="990" y="656" class="cvaf-info">OCSF-aligned</text>
+          <text x="990" y="682" class="cvaf-info">Cross-source compatible</text>
+          <text x="990" y="708" class="cvaf-info">Structured output</text>
+          <text x="990" y="738" class="cvaf-tag">OCSF ALIGNED</text>
+        </g>
+
+        <g>
+          <rect x="593" y="760" width="14" height="28" rx="7" class="tube-shell"/>
+          <rect x="595" y="762" width="10" height="24" rx="5" class="tube-core"/>
+          <g mask="url(#fwTm3)"><g id="fw-t3"></g></g>
+        </g>
+
+        <g class="phase" data-phase="4" style="animation-delay:0.26s">
+          <rect x="30" y="795" width="1140" height="175" rx="10" class="cvaf-box"/>
+          <text x="55" y="841" class="cvaf-phase-num">PHASE 4</text>
+          <text x="55" y="875" class="cvaf-phase-nm">Detection</text>
+          <text x="55" y="907" class="cvaf-phase-sub">Hybrid anomaly</text>
+          <text x="55" y="927" class="cvaf-phase-sub">scoring</text>
+          <line x1="245" y1="820" x2="245" y2="945" class="cvaf-vsep"/>
+
+          <rect x="270" y="822" width="260" height="30" rx="5" class="cvaf-inner"/>
+          <text x="285" y="842" class="cvaf-body-strong" style="fill:var(--accent)">Heuristic</text>
+          <text x="515" y="842" text-anchor="end" class="cvaf-body-sm">25+ signature rules</text>
+
+          <rect x="270" y="858" width="260" height="30" rx="5" class="cvaf-inner"/>
+          <text x="285" y="878" class="cvaf-body-strong" style="fill:var(--accent)">Extended IF</text>
+          <text x="515" y="878" text-anchor="end" class="cvaf-body-sm">isolation forest</text>
+
+          <rect x="270" y="894" width="260" height="30" rx="5" class="cvaf-inner"/>
+          <text x="285" y="914" class="cvaf-body-strong" style="fill:var(--accent)">RRCF</text>
+          <text x="515" y="914" text-anchor="end" class="cvaf-body-sm">random cut forest</text>
+
+          <text x="578" y="876" text-anchor="middle" class="cvaf-mono-accent" style="font-size:18px">→</text>
+
+          <rect x="620" y="858" width="200" height="30" rx="5" class="cvaf-inner" style="stroke:var(--accent-dim)"/>
+          <text x="720" y="878" text-anchor="middle" class="cvaf-body-strong" style="fill:var(--accent)">MERGE + SCORE</text>
+
+          <text x="850" y="862" class="cvaf-info">Consensus scoring</text>
+          <text x="850" y="888" class="cvaf-info">Anomaly ranking</text>
+
+          <line x1="970" y1="820" x2="970" y2="945" class="cvaf-vsep"/>
+          <text x="990" y="842" class="cvaf-info">Three independent</text>
+          <text x="990" y="866" class="cvaf-info">detection methods</text>
+          <text x="990" y="890" class="cvaf-info">Statistical + heuristic</text>
+          <text x="990" y="920" class="cvaf-tag">HYBRID DETECTION</text>
+        </g>
+
+        <g>
+          <rect x="593" y="975" width="14" height="28" rx="7" class="tube-shell"/>
+          <rect x="595" y="977" width="10" height="24" rx="5" class="tube-core"/>
+          <g mask="url(#fwTm4)"><g id="fw-t4"></g></g>
+        </g>
+
+        <g class="phase" data-phase="5" style="animation-delay:0.34s">
+          <rect x="30" y="1010" width="1140" height="175" rx="10" class="cvaf-box"/>
+          <text x="55" y="1056" class="cvaf-phase-num">PHASE 5</text>
+          <text x="55" y="1090" class="cvaf-phase-nm">Attribution</text>
+          <text x="55" y="1122" class="cvaf-phase-sub">Per-feature</text>
+          <text x="55" y="1142" class="cvaf-phase-sub">explanation</text>
+          <line x1="245" y1="1035" x2="245" y2="1160" class="cvaf-vsep"/>
+
+          <text x="270" y="1056" class="cvaf-tag-inner">FEATURE IMPORTANCE</text>
+
+          <text x="270" y="1090" class="cvaf-info">exe</text>
+          <rect x="380" y="1080" width="300" height="11" rx="2" fill="var(--accent)"/>
+
+          <text x="270" y="1118" class="cvaf-info">cmdline</text>
+          <rect x="380" y="1108" width="230" height="11" rx="2" fill="var(--accent)" opacity="0.85"/>
+
+          <text x="270" y="1146" class="cvaf-info">syscall</text>
+          <rect x="380" y="1136" width="160" height="11" rx="2" fill="var(--accent)" opacity="0.7"/>
+
+          <text x="270" y="1174" class="cvaf-info">uid</text>
+          <rect x="380" y="1164" width="100" height="11" rx="2" fill="var(--accent)" opacity="0.55"/>
+
+          <line x1="720" y1="1035" x2="720" y2="1160" class="cvaf-vsep"/>
+          <text x="740" y="1090" class="cvaf-info">Shapley value</text>
+          <text x="740" y="1116" class="cvaf-info">Per-feature contribution</text>
+          <text x="740" y="1142" class="cvaf-info">Explains each flag</text>
+
+          <line x1="970" y1="1035" x2="970" y2="1160" class="cvaf-vsep"/>
+          <text x="990" y="1090" class="cvaf-info">Analyst-readable</text>
+          <text x="990" y="1116" class="cvaf-info">Non-black-box output</text>
+          <text x="990" y="1142" class="cvaf-info">Per-anomaly reasoning</text>
+          <text x="990" y="1172" class="cvaf-tag">EXPLAINABLE</text>
+        </g>
+
+        <g>
+          <rect x="593" y="1190" width="14" height="28" rx="7" class="tube-shell"/>
+          <rect x="595" y="1192" width="10" height="24" rx="5" class="tube-core"/>
+          <g mask="url(#fwTm5)"><g id="fw-t5"></g></g>
+        </g>
+
+        <g class="phase" data-phase="6" style="animation-delay:0.42s">
+          <rect x="30" y="1225" width="1140" height="175" rx="10" class="cvaf-box"/>
+          <text x="55" y="1271" class="cvaf-phase-num">PHASE 6</text>
+          <text x="55" y="1305" class="cvaf-phase-nm">Graph</text>
+          <text x="55" y="1337" class="cvaf-phase-sub">Entity and</text>
+          <text x="55" y="1357" class="cvaf-phase-sub">relationship model</text>
+          <line x1="245" y1="1250" x2="245" y2="1375" class="cvaf-vsep"/>
+
+          <g stroke="var(--accent-dim)" stroke-width="1.2" fill="none" opacity="0.75">
+            <line x1="450" y1="1275" x2="370" y2="1318"/>
+            <line x1="450" y1="1275" x2="530" y2="1318"/>
+            <line x1="370" y1="1318" x2="450" y2="1352"/>
+            <line x1="530" y1="1318" x2="450" y2="1352"/>
+          </g>
+          <circle cx="450" cy="1275" r="10" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.6"/>
+          <circle cx="370" cy="1318" r="8" fill="var(--panel)" stroke="var(--accent-dim)" stroke-width="1.3"/>
+          <circle cx="530" cy="1318" r="8" fill="var(--panel)" stroke="var(--accent-dim)" stroke-width="1.3"/>
+          <circle cx="450" cy="1352" r="8" fill="var(--panel)" stroke="var(--accent-dim)" stroke-width="1.3"/>
+
+          <text x="450" y="1279" text-anchor="middle" class="cvaf-mono" style="font-size:9px;fill:var(--accent)">proc</text>
+          <text x="370" y="1322" text-anchor="middle" class="cvaf-mono" style="font-size:9px">file</text>
+          <text x="530" y="1322" text-anchor="middle" class="cvaf-mono" style="font-size:9px">user</text>
+          <text x="450" y="1356" text-anchor="middle" class="cvaf-mono" style="font-size:9px">net</text>
+
+          <text x="620" y="1298" class="cvaf-body-strong">5 entity types</text>
+          <text x="620" y="1324" class="cvaf-info">process · file · user</text>
+          <text x="620" y="1350" class="cvaf-info">network · kernel module</text>
+
+          <line x1="970" y1="1250" x2="970" y2="1375" class="cvaf-vsep"/>
+          <text x="990" y="1290" class="cvaf-info">Relation extraction</text>
+          <text x="990" y="1316" class="cvaf-info">Cross-event linkage</text>
+          <text x="990" y="1342" class="cvaf-info">Timeline joining</text>
+          <text x="990" y="1372" class="cvaf-tag">KNOWLEDGE BASE</text>
+        </g>
+
+        <g>
+          <rect x="593" y="1405" width="14" height="28" rx="7" class="tube-shell"/>
+          <rect x="595" y="1407" width="10" height="24" rx="5" class="tube-core"/>
+          <g mask="url(#fwTm6)"><g id="fw-t6"></g></g>
+        </g>
+
+        <g class="phase" data-phase="7" style="animation-delay:0.50s">
+          <rect x="30" y="1440" width="1140" height="175" rx="10" class="cvaf-box" style="stroke:var(--accent-dim);stroke-width:1.4"/>
+          <text x="55" y="1486" class="cvaf-phase-num">PHASE 7</text>
+          <text x="55" y="1520" class="cvaf-phase-nm">Reporting</text>
+          <text x="55" y="1552" class="cvaf-phase-sub">Analyst-facing</text>
+          <text x="55" y="1572" class="cvaf-phase-sub">deliverables</text>
+          <line x1="245" y1="1465" x2="245" y2="1590" class="cvaf-vsep"/>
+
+          <rect x="270" y="1468" width="160" height="120" rx="6" class="cvaf-inner"/>
+          <text x="350" y="1500" text-anchor="middle" class="cvaf-body-strong" style="fill:var(--accent)">3D Visualization</text>
+          <text x="350" y="1528" text-anchor="middle" class="cvaf-body-sm">Interactive</text>
+          <text x="350" y="1552" text-anchor="middle" class="cvaf-body-sm">entity graph view</text>
+          <text x="350" y="1578" text-anchor="middle" class="cvaf-mono" style="font-size:10px">WebGL · Three.js</text>
+
+          <rect x="440" y="1468" width="160" height="120" rx="6" class="cvaf-inner"/>
+          <text x="520" y="1500" text-anchor="middle" class="cvaf-body-strong" style="fill:var(--accent)">Alert Stream</text>
+          <text x="520" y="1528" text-anchor="middle" class="cvaf-body-sm">Severity-ranked</text>
+          <text x="520" y="1552" text-anchor="middle" class="cvaf-body-sm">anomaly feed</text>
+          <text x="520" y="1578" text-anchor="middle" class="cvaf-mono" style="font-size:10px">JSON · structured</text>
+
+          <rect x="610" y="1468" width="160" height="120" rx="6" class="cvaf-inner"/>
+          <text x="690" y="1500" text-anchor="middle" class="cvaf-body-strong" style="fill:var(--accent)">Forensic Report</text>
+          <text x="690" y="1528" text-anchor="middle" class="cvaf-body-sm">With attribution</text>
+          <text x="690" y="1552" text-anchor="middle" class="cvaf-body-sm">and timeline</text>
+          <text x="690" y="1578" text-anchor="middle" class="cvaf-mono" style="font-size:10px">Markdown · PDF</text>
+
+          <rect x="780" y="1468" width="160" height="120" rx="6" class="cvaf-inner"/>
+          <text x="860" y="1500" text-anchor="middle" class="cvaf-body-strong" style="fill:var(--accent)">Evidence Export</text>
+          <text x="860" y="1528" text-anchor="middle" class="cvaf-body-sm">OCSF records</text>
+          <text x="860" y="1552" text-anchor="middle" class="cvaf-body-sm">+ raw audit data</text>
+          <text x="860" y="1578" text-anchor="middle" class="cvaf-mono" style="font-size:10px">NDJSON</text>
+
+          <line x1="970" y1="1465" x2="970" y2="1590" class="cvaf-vsep"/>
+          <text x="990" y="1500" class="cvaf-info">Analyst-readable</text>
+          <text x="990" y="1526" class="cvaf-info">Machine-readable</text>
+          <text x="990" y="1552" class="cvaf-info">Court-admissible</text>
+          <text x="990" y="1582" class="cvaf-tag">DELIVERABLE OUTPUT</text>
+        </g>
+
+        <text x="30" y="1660" class="cvaf-eyebrow">OUTPUT</text>
+        <text x="30" y="1682" class="cvaf-info">Attributed anomalies, knowledge graph, and forensic report</text>
+      </svg>
+    </div>
+    <p class="diagram-cap">Seven-phase CVAF framework, end to end.</p>
+  </section>
+
+  <section id="objectives" class="reveal">
+    <h2>Research objectives</h2>
+    <p>
+      The research examines a forensic pipeline for Linux workloads running
+      inside IaaS virtual machines. The work focuses on evidence acquisition,
+      integrity preservation, semantic representation, anomaly detection,
+      explanation, and forensic analysis, with evaluation based on controlled
+      scenarios and ground truth recorded independently of the detector.
+    </p>
+  </section>
+
+  <section id="methodology" class="reveal">
+    <h2>Methodology</h2>
+    <p>
+      Evidence is acquired through native Linux auditd on full-boot KVM
+      virtual machines and hash-chained during acquisition. The normalized
+      records are processed by heuristic rules and statistical anomaly
+      scoring components, including an Extended Isolation Forest variant and
+      a buffer-based Robust Random Cut Forest approximation. Detection output
+      includes Shapley-style feature attribution. Attack scenarios are mapped
+      to MITRE ATT&amp;CK techniques, while ground truth is recorded
+      independently from the detection process.
+    </p>
+    <div class="methodrow reveal-stagger">
+      <span class="pill">auditd</span>
+      <span class="pill">KVM / libvirt</span>
+      <span class="pill">MITRE ATT&amp;CK</span>
+      <span class="pill">SHA-256 chain-of-custody</span>
+      <span class="pill">Extended Isolation Forest variant</span>
+      <span class="pill">Robust Random Cut Forest approximation</span>
+      <span class="pill">Shapley-style attribution</span>
+      <span class="pill">OCSF-aligned schema</span>
+    </div>
+  </section>
+
+  </div>
+
+  <div class="panel" data-panel="ds">
+
+  <section id="ds-architecture" class="reveal">
+    <h2>Architecture</h2>
+    <p>
+      CVAF-DS is collected on an isolated two-role virtual machine lab. An
+      attack scenario is executed, its evidence is captured through the same
+      native auditd path CVAF uses in live operation, and a ground-truth
+      record is written independently before the cycle repeats with natural
+      variation.
+    </p>
+
+    <div class="diagram-dataset">
+      <span class="diagram-scroll-hint" aria-hidden="true">⇄ scroll</span>
+      <svg viewBox="0 0 1200 740" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CVAF-DS dataset collection methodology: a two-role virtual machine lab feeding a repeating collection loop that produces the public dataset.">
+        <defs>
+          <linearGradient id="dsCoreGradient" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="var(--tube-inner)"/>
+            <stop offset="50%" stop-color="#0D1620"/>
+            <stop offset="100%" stop-color="var(--tube-inner)"/>
+          </linearGradient>
+          <marker id="dsLoopArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#0E6E7D"/>
+          </marker>
+        </defs>
+
+        <text x="600" y="28" text-anchor="middle" class="cvaf-title">CVAF-DS DATASET</text>
+        <text x="600" y="48" text-anchor="middle" class="cvaf-sub">Collection methodology for a controlled Linux VM forensic dataset</text>
+
+        <text x="40" y="92" class="cvaf-eyebrow">INPUT</text>
+        <text x="40" y="110" class="cvaf-sub">Full-boot KVM virtual machines, native Linux auditd, isolated network</text>
+
+        <g class="phase" data-phase="lab" style="animation-delay:0.02s">
+          <rect x="150" y="140" width="400" height="120" rx="10" class="cvaf-box-edge"/>
+          <text x="180" y="168" class="cvaf-phase-num">ROLE 01</text>
+          <text x="180" y="194" class="vm-title">Victim VM</text>
+          <text x="180" y="216" class="vm-sub">full-boot Linux guest · auditd ON</text>
+          <line x1="180" y1="230" x2="520" y2="230" class="cvaf-sep"/>
+          <text x="180" y="248" class="vm-tag">EVIDENCE SOURCE</text>
+        </g>
+
+        <g>
+          <rect x="558" y="195" width="84" height="10" rx="5" class="tube-shell"/>
+          <rect x="560" y="197" width="80" height="6" rx="3" class="tube-core"/>
+          <g id="ds-t-attack"></g>
+          <text x="600" y="188" text-anchor="middle" class="flow-label">attack traffic</text>
+          <text x="600" y="222" text-anchor="middle" class="flow-label-muted">MITRE ATT&amp;CK scenario</text>
+        </g>
+
+        <g class="phase" data-phase="lab" style="animation-delay:0.10s">
+          <rect x="650" y="140" width="400" height="120" rx="10" class="cvaf-box"/>
+          <text x="680" y="168" class="cvaf-phase-num">ROLE 02</text>
+          <text x="680" y="194" class="vm-title">Attacker VM</text>
+          <text x="680" y="216" class="vm-sub">isolated role · scenario driver</text>
+          <line x1="680" y1="230" x2="1020" y2="230" class="cvaf-sep"/>
+          <text x="680" y="248" class="vm-tag">GROUND TRUTH SOURCE</text>
+        </g>
+
+        <g>
+          <rect x="345" y="270" width="10" height="55" rx="5" class="tube-shell"/>
+          <rect x="347" y="272" width="6" height="51" rx="3" class="tube-core"/>
+          <g id="ds-t-evidence"></g>
+          <text x="368" y="300" class="flow-label">evidence</text>
+        </g>
+
+        <g>
+          <rect x="845" y="270" width="10" height="55" rx="5" class="tube-shell"/>
+          <rect x="847" y="272" width="6" height="51" rx="3" class="tube-core"/>
+          <g id="ds-t-truth"></g>
+          <text x="865" y="300" class="flow-label">ground truth</text>
+        </g>
+
+        <rect x="60" y="340" width="1080" height="240" rx="12" class="loop-container"/>
+        <text x="600" y="368" text-anchor="middle" class="loop-container-label">COLLECTION LOOP</text>
+        <text x="600" y="386" text-anchor="middle" class="loop-container-sub">each scenario runs through this cycle repeatedly with natural variation</text>
+
+        <g class="phase" data-phase="exec" style="animation-delay:0.18s">
+          <rect x="100" y="410" width="220" height="115" rx="10" class="cvaf-box"/>
+          <text x="210" y="436" text-anchor="middle" class="cvaf-phase-num">STAGE 01</text>
+          <text x="210" y="462" text-anchor="middle" class="cvaf-phase-nm">Execute</text>
+          <line x1="120" y1="478" x2="300" y2="478" class="cvaf-sep"/>
+          <text x="210" y="502" text-anchor="middle" class="cvaf-detail">attack scenario</text>
+        </g>
+
+        <g>
+          <rect x="328" y="462" width="46" height="10" rx="5" class="tube-shell"/>
+          <rect x="330" y="464" width="42" height="6" rx="3" class="tube-core"/>
+          <g id="ds-t-e2c"></g>
+        </g>
+
+        <g class="phase" data-phase="cap" style="animation-delay:0.26s">
+          <rect x="380" y="410" width="220" height="115" rx="10" class="cvaf-box"/>
+          <text x="490" y="436" text-anchor="middle" class="cvaf-phase-num">STAGE 02</text>
+          <text x="490" y="462" text-anchor="middle" class="cvaf-phase-nm">Capture</text>
+          <line x1="400" y1="478" x2="580" y2="478" class="cvaf-sep"/>
+          <text x="490" y="502" text-anchor="middle" class="cvaf-detail">auditd stream</text>
+        </g>
+
+        <g>
+          <rect x="608" y="462" width="46" height="10" rx="5" class="tube-shell"/>
+          <rect x="610" y="464" width="42" height="6" rx="3" class="tube-core"/>
+          <g id="ds-t-c2r"></g>
+        </g>
+
+        <g class="phase" data-phase="rec" style="animation-delay:0.34s">
+          <rect x="660" y="410" width="220" height="115" rx="10" class="cvaf-box"/>
+          <text x="770" y="436" text-anchor="middle" class="cvaf-phase-num">STAGE 03</text>
+          <text x="770" y="462" text-anchor="middle" class="cvaf-phase-nm">Record</text>
+          <line x1="680" y1="478" x2="860" y2="478" class="cvaf-sep"/>
+          <text x="770" y="502" text-anchor="middle" class="cvaf-detail">ground truth</text>
+        </g>
+
+        <g>
+          <rect x="888" y="462" width="46" height="10" rx="5" class="tube-shell"/>
+          <rect x="890" y="464" width="42" height="6" rx="3" class="tube-core"/>
+          <g id="ds-t-r2i"></g>
+        </g>
+
+        <g class="phase" data-phase="iter" style="animation-delay:0.42s">
+          <rect x="940" y="410" width="180" height="115" rx="10" class="cvaf-box"/>
+          <text x="1030" y="436" text-anchor="middle" class="cvaf-phase-num">STAGE 04</text>
+          <text x="1030" y="462" text-anchor="middle" class="cvaf-phase-nm">Iterate</text>
+          <line x1="960" y1="478" x2="1120" y2="478" class="cvaf-sep"/>
+          <text x="1030" y="502" text-anchor="middle" class="cvaf-detail">re-run with variation</text>
+        </g>
+
+        <path class="loopback" d="M 1030 525 Q 1030 555 1000 555 L 240 555 Q 210 555 210 528"/>
+        <rect x="530" y="546" width="140" height="18" rx="4" class="loopback-label-bg"/>
+        <text x="600" y="559" text-anchor="middle" class="loopback-label">REPEATS N TIMES</text>
+
+        <g>
+          <rect x="595" y="580" width="10" height="50" rx="5" class="tube-shell"/>
+          <rect x="597" y="582" width="6" height="46" rx="3" class="tube-core"/>
+          <g id="ds-t-out"></g>
+        </g>
+
+        <g class="phase" data-phase="out" style="animation-delay:0.50s">
+          <rect x="400" y="630" width="400" height="80" rx="10" class="cvaf-box-edge"/>
+          <text x="600" y="662" text-anchor="middle" class="vm-title">CVAF-DS</text>
+          <text x="600" y="684" text-anchor="middle" class="vm-sub">public Linux VM forensic dataset</text>
+          <text x="600" y="702" text-anchor="middle" class="vm-tag">DELIVERABLE</text>
+        </g>
+
+        <text x="40" y="652" class="cvaf-eyebrow">OUTPUT</text>
+        <text x="40" y="670" class="cvaf-sub">Reproducible dataset with independent ground truth</text>
+      </svg>
+    </div>
+    <p class="diagram-cap">Collection loop for each CVAF-DS attack scenario.</p>
+  </section>
+
+  <section id="ds-objectives" class="reveal">
+    <h2>Research objectives</h2>
+    <p>
+      Build a dataset that lets the CVAF framework, along with other Linux
+      host-based detection approaches, be evaluated against real kernel-level
+      evidence rather than synthetic or container-only traces, with ground
+      truth that is reproducible and recorded independently of any detector,
+      and that supports direct comparison against existing public
+      intrusion-detection datasets.
+    </p>
+  </section>
+
+  <section id="ds-methodology" class="reveal">
+    <h2>Methodology</h2>
+    <p>
+      Each scenario is mapped to a named MITRE ATT&amp;CK technique and
+      executed repeatedly with natural variation in timing and parameters,
+      interleaved with continuous low-privilege benign background activity so
+      that attack evidence remains a minority class. A cloud instance-metadata
+      scenario is collected via a link-local address and a minimal responder
+      mimicking a real metadata service, since no such endpoint exists on a
+      standalone virtual machine. This is the dataset's primary differentiator
+      from existing public Linux intrusion-detection benchmarks.
+    </p>
+    <div class="methodrow reveal-stagger">
+      <span class="pill">SSH Brute-Force · T1110.001</span>
+      <span class="pill">Privilege Escalation · T1548.003</span>
+      <span class="pill">Passwd/Shadow Tampering · T1098</span>
+      <span class="pill">Credential Dumping · T1003.008</span>
+      <span class="pill">New User / Backdoor · T1136.001</span>
+      <span class="pill">SSH Config Tampering · T1098.004</span>
+      <span class="pill">Kernel Module Load/Unload · T1547.006</span>
+      <span class="pill">Recon / Enumeration · T1082 / T1046</span>
+      <span class="pill">Cloud Metadata Access · T1552.005</span>
+      <span class="pill">Log Tampering · T1070.002</span>
+    </div>
+
+    <p style="margin-top:26px;">
+      Collecting on real virtual machines with real auditd, rather than a
+      synthetic or pre-cleaned log source, surfaced genuine infrastructure
+      findings along the way. They are documented here because they affect
+      reproducibility for anyone working with a similar environment.
+    </p>
+    <div class="finding-grid reveal-stagger">
+      <div class="finding-card">
+        <span class="flbl">Audit-log parsing</span>
+        <p>The auditd build used in this environment concatenated some interpreted fields without a separator, breaking standard query tooling for certain record types. Resolved by querying the raw log directly for those cases.</p>
+      </div>
+      <div class="finding-card">
+        <span class="flbl">Snapshot-safe automation</span>
+        <p>Automation that must survive a VM snapshot revert cannot live in temporary or ephemeral storage inside the guest, since that is wiped on revert.</p>
+      </div>
+      <div class="finding-card">
+        <span class="flbl">Snapshot / audit-state sync</span>
+        <p>A previously-working audit rule intermittently stopped producing evidence after a snapshot was merely created. Resolved with a full audit-subsystem restart, reload, and a live-fire probe before trusting the environment for an attack action.</p>
+      </div>
+      <div class="finding-card">
+        <span class="flbl">Network evidence structure</span>
+        <p>For the network-based scenario, the record carrying the detection tag does not itself contain the destination address. That lives in a separate, related record, which evidence-matching has to account for.</p>
+      </div>
+      <div class="finding-card">
+        <span class="flbl">Remote process lifecycle</span>
+        <p>Background services started over SSH need proper session detachment to survive the session closing. Killing them reliably by process name was unreliable, whereas identifying them by the port they were bound to was not.</p>
+      </div>
+    </div>
+    <p class="note-line">Dataset-scale statistics, run counts, and validation results are reported with the dataset research publication.</p>
+  </section>
+
+  </div>
+
+  <footer class="reveal">
+    <p>
+      This page provides a public overview of the CVAF research project.
+      Source code, raw audit evidence, unpublished dataset material, and
+      internal experimental artifacts are maintained separately from the
+      public research documentation.
+    </p>
+    <div class="links">
+      <a href="#" target="_blank" rel="noopener">GitHub repository</a>
+      <a href="#" target="_blank" rel="noopener">Dataset record</a>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  var preloader = document.getElementById('preloader');
+  var MIN_SHOW = 900;
+  var startTime = Date.now();
+
+  function dismissPreloader(){
+    if (!preloader) return;
+    preloader.classList.add('is-hidden');
+    setTimeout(function(){
+      if (preloader && preloader.parentNode) {
+        preloader.parentNode.removeChild(preloader);
+      }
+    }, 700);
+  }
+  function scheduleDismiss(){
+    var remaining = Math.max(0, MIN_SHOW - (Date.now() - startTime));
+    setTimeout(dismissPreloader, remaining);
+  }
+  if (document.readyState === 'complete') scheduleDismiss();
+  else window.addEventListener('load', scheduleDismiss);
+  setTimeout(dismissPreloader, 3500);
+  ['click','keydown','touchstart'].forEach(function(evt){
+    window.addEventListener(evt, dismissPreloader, { once: true, passive: true });
+  });
+
+  var revealTargets = document.querySelectorAll('.reveal, .reveal-stagger, section');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    revealTargets.forEach(function(el){ io.observe(el); });
+  } else {
+    revealTargets.forEach(function(el){ el.classList.add('is-visible'); });
+  }
+
+  var header = document.getElementById('siteHeader');
+  window.addEventListener('scroll', function(){
+    if (window.scrollY > 20) header.classList.add('scrolled');
+    else header.classList.remove('scrolled');
+  }, { passive: true });
+
+  var glow = document.getElementById('cursorGlow');
+  var mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  var glowPos = { x: mouse.x, y: mouse.y };
+  var glowVisible = false;
+  if (glow && window.matchMedia('(hover: hover)').matches) {
+    document.addEventListener('mousemove', function(e){
+      mouse.x = e.clientX; mouse.y = e.clientY;
+      if (!glowVisible) { glow.style.opacity = '1'; glowVisible = true; }
+    }, { passive: true });
+    document.addEventListener('mouseleave', function(){
+      glow.style.opacity = '0'; glowVisible = false;
+    });
+    (function animateGlow(){
+      glowPos.x += (mouse.x - glowPos.x) * 0.09;
+      glowPos.y += (mouse.y - glowPos.y) * 0.09;
+      glow.style.transform = 'translate(' + glowPos.x + 'px,' + glowPos.y + 'px) translate(-50%,-50%)';
+      requestAnimationFrame(animateGlow);
+    })();
+  }
+
+  var magBtn = document.getElementById('magneticBtn');
+  if (magBtn && window.matchMedia('(hover: hover)').matches) {
+    var MAG_STRENGTH = 0.28;
+    magBtn.addEventListener('mousemove', function(e){
+      var rect = magBtn.getBoundingClientRect();
+      var cx = rect.left + rect.width / 2;
+      var cy = rect.top + rect.height / 2;
+      magBtn.style.transform = 'translate(' +
+        ((e.clientX - cx) * MAG_STRENGTH) + 'px,' +
+        ((e.clientY - cy) * MAG_STRENGTH) + 'px)';
+      magBtn.style.setProperty('--mx', ((e.clientX - rect.left) / rect.width * 100) + '%');
+      magBtn.style.setProperty('--my', ((e.clientY - rect.top) / rect.height * 100) + '%');
+    });
+    magBtn.addEventListener('mouseleave', function(){ magBtn.style.transform = ''; });
+    magBtn.addEventListener('mousedown', function(){ magBtn.style.transform += ' scale(0.95)'; });
+    magBtn.addEventListener('mouseup', function(){
+      magBtn.style.transform = magBtn.style.transform.replace(' scale(0.95)', '');
+    });
+  }
+
+  document.querySelectorAll('a[href^="#"]').forEach(function(link){
+    link.addEventListener('click', function(e){
+      var target = document.querySelector(this.getAttribute('href'));
+      if (target) {
+        e.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+
+})();
+</script>
+
+<script>
+(function(){
+  'use strict';
+
+  var tiles   = document.querySelectorAll('[data-project]');
+  var panels  = document.querySelectorAll('.panel');
+  var thumb   = document.getElementById('projectThumb');
+  var activeProject = 'cvaf';
+  var hasBooted = false;
+  var OUT_MS = 280;
+
+  function setThumb(side, preview){
+    if (!thumb) return;
+    thumb.setAttribute('data-side', side);
+    if (preview) thumb.classList.add('is-preview');
+    else thumb.classList.remove('is-preview');
+  }
+
+  function revealPanel(panel){
+    panel.querySelectorAll('.reveal, .reveal-stagger, section').forEach(function(el){
+      el.classList.add('is-visible');
+    });
+  }
+
+  function activate(project){
+    if (project === activeProject && hasBooted) return;
+
+    tiles.forEach(function(t){
+      var on = t.getAttribute('data-project') === project;
+      t.classList.toggle('is-active', on);
+      t.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    setThumb(project, false);
+
+    var current = document.querySelector('.panel.is-active');
+    var next    = document.querySelector('.panel[data-panel="' + project + '"]');
+
+    if (!hasBooted || !current || current === next) {
+      panels.forEach(function(p){
+        var on = p.getAttribute('data-panel') === project;
+        p.classList.remove('is-leaving', 'is-switching');
+        p.classList.toggle('is-active', on);
+        if (on) revealPanel(p);
+      });
+      activeProject = project;
+      hasBooted = true;
+      return;
+    }
+
+    if (window.__cvafSetSwitching) window.__cvafSetSwitching(true);
+
+    current.classList.remove('is-switching');
+    void current.offsetWidth;
+    current.classList.add('is-leaving');
+
+    setTimeout(function(){
+      current.classList.remove('is-active', 'is-leaving', 'is-switching');
+
+      next.classList.add('is-active');
+      revealPanel(next);
+
+      void next.offsetWidth;
+      next.classList.add('is-switching');
+
+      activeProject = project;
+
+      setTimeout(function(){
+        next.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 60);
+
+      setTimeout(function(){
+        if (window.__cvafSetSwitching) window.__cvafSetSwitching(false);
+      }, 600);
+    }, OUT_MS);
+  }
+
+  tiles.forEach(function(tile){
+    tile.addEventListener('click', function(){
+      activate(tile.getAttribute('data-project'));
+    });
+    tile.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        tile.click();
+      }
+    });
+    tile.addEventListener('mouseenter', function(){
+      var p = tile.getAttribute('data-project');
+      if (p !== activeProject) setThumb(p, true);
+    });
+    tile.addEventListener('mouseleave', function(){
+      setThumb(activeProject, false);
+    });
+  });
+
+})();
+</script>
+
+<script>
+(function(){
+  'use strict';
+
+  if (!window.matchMedia) return;
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) return;
+
+  var svgNS = "http://www.w3.org/2000/svg";
+  var SWITCHING = false;
+
+  window.__cvafSetSwitching = function(v){ SWITCHING = v; };
+
+  function rand(min, max){ return Math.random() * (max - min) + min; }
+
+  function inActivePanel(el){
+    var p = el.closest ? el.closest('.panel') : null;
+    if (!p) return true;
+    return p.classList.contains('is-active');
+  }
+
+  var fwTubes = [
+    { id:'fw-t1', y1:332, y2:352, delay:0 },
+    { id:'fw-t2', y1:547, y2:567, delay:90 },
+    { id:'fw-t3', y1:762, y2:782, delay:210 },
+    { id:'fw-t4', y1:977, y2:997, delay:60 },
+    { id:'fw-t5', y1:1192, y2:1212, delay:280 },
+    { id:'fw-t6', y1:1407, y2:1427, delay:140 }
+  ];
+
+  function spawnFwPulse(container, y1, y2){
+    var len = rand(3, 6);
+    var width = rand(1.8, 3.6);
+    var rect = document.createElementNS(svgNS, 'rect');
+    rect.setAttribute('x', 600 - width / 2);
+    rect.setAttribute('y', y1);
+    rect.setAttribute('width', width);
+    rect.setAttribute('height', len);
+    rect.setAttribute('rx', width / 2);
+    var bright = Math.random() < 0.18;
+    rect.setAttribute('fill', bright ? '#E4E7EA' : '#00E5FF');
+    rect.setAttribute('class', 'pulse');
+    rect.style.opacity = rand(0.4, 0.95).toFixed(2);
+    container.appendChild(rect);
+
+    var distance = (y2 - y1) - len;
+    var anim = rect.animate(
+      [
+        { transform: 'translateY(0px)' },
+        { transform: 'translateY(' + distance + 'px)' }
+      ],
+      { duration: rand(550, 1650), easing: 'linear', fill: 'forwards' }
+    );
+    anim.onfinish = function(){ rect.remove(); };
+  }
+
+  function loopFwTube(t){
+    var c = document.getElementById(t.id);
+    if (c && !SWITCHING && inActivePanel(c)) spawnFwPulse(c, t.y1, t.y2);
+    setTimeout(function(){ loopFwTube(t); }, rand(160, 560));
+  }
+  fwTubes.forEach(function(t){
+    setTimeout(function(){ loopFwTube(t); }, t.delay);
+  });
+
+  var fwPhases = document.querySelectorAll('.diagram-framework .phase');
+  fwPhases.forEach(function(p){
+    p.addEventListener('mouseenter', function(){
+      fwPhases.forEach(function(other){
+        if (other === p) { other.classList.add('active'); other.classList.remove('dimmed'); }
+        else { other.classList.remove('active'); other.classList.add('dimmed'); }
+      });
+    });
+    p.addEventListener('mouseleave', function(){
+      fwPhases.forEach(function(other){
+        other.classList.remove('active'); other.classList.remove('dimmed');
+      });
+    });
+  });
+
+  var dsTubes = [
+    { id:'ds-t-attack',   x1:560, y1:200, x2:640, y2:200, delay:0    },
+    { id:'ds-t-evidence', x1:350, y1:272, x2:350, y2:323, delay:120  },
+    { id:'ds-t-truth',    x1:850, y1:272, x2:850, y2:323, delay:200  },
+    { id:'ds-t-e2c',      x1:330, y1:467, x2:372, y2:467, delay:40   },
+    { id:'ds-t-c2r',      x1:610, y1:467, x2:652, y2:467, delay:150  },
+    { id:'ds-t-r2i',      x1:890, y1:467, x2:932, y2:467, delay:240  },
+    { id:'ds-t-out',      x1:600, y1:582, x2:600, y2:628, delay:80   }
+  ];
+
+  function spawnDsPulse(container, x1, y1, x2, y2){
+    var dx = x2 - x1;
+    var dy = y2 - y1;
+    var horizontal = Math.abs(dx) >= Math.abs(dy);
+
+    var len = rand(3, 6);
+    var thickness = rand(1.6, 3.4);
+    var rect = document.createElementNS(svgNS, 'rect');
+    var travelDist, anim;
+
+    if (horizontal) {
+      rect.setAttribute('x', x1);
+      rect.setAttribute('y', y1 - thickness / 2);
+      rect.setAttribute('width', len);
+      rect.setAttribute('height', thickness);
+      rect.setAttribute('rx', thickness / 2);
+      travelDist = Math.abs(dx) - len;
+      anim = rect.animate(
+        [{ transform:'translateX(0px)' }, { transform:'translateX(' + travelDist + 'px)' }],
+        { duration: rand(600, 1800), easing:'linear', fill:'forwards' }
+      );
+    } else {
+      rect.setAttribute('x', x1 - thickness / 2);
+      rect.setAttribute('y', y1);
+      rect.setAttribute('width', thickness);
+      rect.setAttribute('height', len);
+      rect.setAttribute('rx', thickness / 2);
+      travelDist = Math.abs(dy) - len;
+      anim = rect.animate(
+        [{ transform:'translateY(0px)' }, { transform:'translateY(' + travelDist + 'px)' }],
+        { duration: rand(600, 1800), easing:'linear', fill:'forwards' }
+      );
+    }
+
+    var bright = Math.random() < 0.18;
+    rect.setAttribute('fill', bright ? '#E4E7EA' : '#00E5FF');
+    rect.setAttribute('class', 'pulse');
+    rect.style.opacity = rand(0.4, 0.95).toFixed(2);
+    container.appendChild(rect);
+    anim.onfinish = function(){ rect.remove(); };
+  }
+
+  function loopDsTube(t){
+    var c = document.getElementById(t.id);
+    if (c && !SWITCHING && inActivePanel(c)) spawnDsPulse(c, t.x1, t.y1, t.x2, t.y2);
+    setTimeout(function(){ loopDsTube(t); }, rand(180, 560));
+  }
+  dsTubes.forEach(function(t){
+    setTimeout(function(){ loopDsTube(t); }, t.delay);
+  });
+
+  var dsPhases = document.querySelectorAll('.diagram-dataset .phase');
+  dsPhases.forEach(function(p){
+    p.addEventListener('mouseenter', function(){
+      dsPhases.forEach(function(other){
+        if (other === p) { other.classList.add('active'); other.classList.remove('dimmed'); }
+        else { other.classList.remove('active'); other.classList.add('dimmed'); }
+      });
+    });
+    p.addEventListener('mouseleave', function(){
+      dsPhases.forEach(function(other){
+        other.classList.remove('active');
+        other.classList.remove('dimmed');
+      });
+    });
+  });
+
+})();
+</script>
+
+<script>
+(function(){
+  'use strict';
+
+  var wraps = document.querySelectorAll('.diagram-framework, .diagram-dataset');
+
+  function refresh(el){
+    var overflowing = el.scrollWidth - el.clientWidth > 2;
+    el.classList.toggle('has-overflow', overflowing);
+    var atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
+    el.classList.toggle('scrolled-end', overflowing && atEnd);
+  }
+
+  wraps.forEach(function(el){
+    refresh(el);
+    el.addEventListener('scroll', function(){ refresh(el); }, { passive: true });
+  });
+
+  window.addEventListener('resize', function(){
+    wraps.forEach(refresh);
+  }, { passive: true });
+
+})();
+</script>
+</body>
+</html>
