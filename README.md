@@ -1,6 +1,7 @@
 # CVAF Research: Cloud VM Workload Forensics
 
 *An ongoing research project on host-level forensic evidence collection, chain-of-custody preservation, and hybrid anomaly detection for cloud IaaS Linux workloads.*
+
 **Live site:** https://muzasio.github.io/CVAF-Research/
 
 > **Research status:** This repository documents the current CVAF research project, including its architecture, methodology, dataset design, and selected research material. Raw dataset files and private experimental material are maintained separately. The CVAF framework source code is not included in this repository and is not intended for public release. See [Repository scope](#repository-scope) for details.
